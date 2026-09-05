@@ -26,7 +26,11 @@ import lombok.RequiredArgsConstructor;
  * - Garantiza que las operaciones de actualización y eliminación respeten las reglas de integridad referencial.
  * - Sincroniza la proyección de libros en ms-recursos mediante Feign.
  * - No deja eliminar un libro si tiene categorías asociadas, lanzando una excepción de integridad referencial con detalles claros para el cliente.
-  */
+ * - Si el libro tiene recursos físicos asociados, también lanza una excepción de integridad referencial, indicando al cliente que no puede eliminarlo.
+ * - Permite agregar categorías a un libro existente, asegurando que la relación se mantenga consistente y evitando duplicados.
+ * - Todas las operaciones que modifican el estado de la base de datos están marcadas como @Transactional para garantizar la atomicidad y consistencia de las transacciones.
+ * - Proporciona métodos para buscar libros por ID o ISBN, lanzando excepciones claras
+*/
 @Service
 @RequiredArgsConstructor
 public class LibroService {
