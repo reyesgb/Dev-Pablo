@@ -7,7 +7,7 @@ import lombok.Data;
 
 /**
  * DTO para el registro público de nuevos usuarios.
- * El rol se asigna automáticamente como "Cliente" en el servicio.
+ * El rol se asigna automáticamente como "Cliente" en el servicio despues  de la validación con los datos del request.
  */
 @Data
 public class RegisterRequest {
