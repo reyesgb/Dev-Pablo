@@ -1,0 +1,196 @@
+services:
+
+  # ==========================================================
+  # BASE DE DATOS - USUARIOS
+  # ==========================================================
+  postgres-usuarios:
+    image: postgres:16
+    container_name: biblioteca-postgres-usuarios
+    environment:
+      POSTGRES_DB: usuarios
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: alone15
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_usuarios_data:/var/lib/postgresql/data
+      - ./init-multi-db/01-usuarios.sql:/docker-entrypoint-initdb.d/01-usuarios.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d usuarios"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==========================================================
+  # BASE DE DATOS - CATALOGO
+  # ==========================================================
+  postgres-catalogo:
+    image: postgres:16
+    container_name: biblioteca-postgres-catalogo
+    environment:
+      POSTGRES_DB: catalogo
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: alone15
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_catalogo_data:/var/lib/postgresql/data
+      - ./init-multi-db/02-catalogo.sql:/docker-entrypoint-initdb.d/02-catalogo.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d catalogo"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==========================================================
+  # BASE DE DATOS - RECURSOS
+  # ==========================================================
+  postgres-recursos:
+    image: postgres:16
+    container_name: biblioteca-postgres-recursos
+    environment:
+      POSTGRES_DB: recursos
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: alone15
+    ports:
+      - "5435:5432"
+    volumes:
+      - postgres_recursos_data:/var/lib/postgresql/data
+      - ./init-multi-db/03-recursos.sql:/docker-entrypoint-initdb.d/03-recursos.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d recursos"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==========================================================
+  # EUREKA SERVER
+  # ==========================================================
+  eureka-server:
+    build:
+      context: .
+      dockerfile: eureka/Dockerfile
+    container_name: biblioteca-eureka
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+    ports:
+      - "8761:8761"
+    restart: unless-stopped
+
+  # ==========================================================
+  # MS-USUARIOS
+  # ==========================================================
+  ms-usuarios:
+    build:
+      context: .
+      dockerfile: ms-usuarios/Dockerfile
+    container_name: biblioteca-ms-usuarios
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+
+      DB_URL: jdbc:postgresql://postgres-usuarios:5432/usuarios
+      DB_USERNAME: postgres
+      DB_PASSWORD: alone15
+
+      EUREKA_URL: http://eureka-server:8761/eureka
+    ports:
+      - "9001:9001"
+    depends_on:
+      postgres-usuarios:
+        condition: service_healthy
+      eureka-server:
+        condition: service_started
+    restart: unless-stopped
+
+  # ==========================================================
+  # MS-CATALOGO
+  # ==========================================================
+  ms-catalogo:
+    build:
+      context: .
+      dockerfile: ms-catalogo/Dockerfile
+    container_name: biblioteca-ms-catalogo
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+
+      DB_URL: jdbc:postgresql://postgres-catalogo:5432/catalogo
+      DB_USERNAME: postgres
+      DB_PASSWORD: alone15
+
+      EUREKA_URL: http://eureka-server:8761/eureka
+
+      CLIENTS_MS_RECURSOS_URL: http://ms-recursos:9003
+    ports:
+      - "9002:9002"
+    depends_on:
+      postgres-catalogo:
+        condition: service_healthy
+      eureka-server:
+        condition: service_started
+    restart: unless-stopped
+
+  # ==========================================================
+  # MS-RECURSOS
+  # ==========================================================
+  ms-recursos:
+    build:
+      context: .
+      dockerfile: ms-recursos/Dockerfile
+    container_name: biblioteca-ms-recursos
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+
+      DB_URL: jdbc:postgresql://postgres-recursos:5432/recursos
+      DB_USERNAME: postgres
+      DB_PASSWORD: alone15
+
+      EUREKA_URL: http://eureka-server:8761/eureka
+
+      CLIENTS_MS_CATALOGO_URL: http://ms-catalogo:9002
+      CLIENTS_MS_USUARIOS_URL: http://ms-usuarios:9001
+    ports:
+      - "9003:9003"
+    depends_on:
+      postgres-recursos:
+        condition: service_healthy
+      eureka-server:
+        condition: service_started
+      ms-usuarios:
+        condition: service_started
+      ms-catalogo:
+        condition: service_started
+    restart: unless-stopped
+
+  # ==========================================================
+  # API GATEWAY
+  # ==========================================================
+  api-gateway:
+    build:
+      context: .
+      dockerfile: api-gateway/Dockerfile
+    container_name: biblioteca-api-gateway
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+
+      EUREKA_URL: http://eureka-server:8761/eureka
+    ports:
+      - "9000:9000"
+    depends_on:
+      eureka-server:
+        condition: service_started
+      ms-usuarios:
+        condition: service_started
+      ms-catalogo:
+        condition: service_started
+      ms-recursos:
+        condition: service_started
+    restart: unless-stopped
+
+
+# ==========================================================
+# VOLUMENES
+# ==========================================================
+volumes:
+  postgres_usuarios_data:
+  postgres_catalogo_data:
+  postgres_recursos_data:
